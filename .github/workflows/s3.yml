@@ -1,0 +1,56 @@
+name: Terraform S3 Deploy
+
+on:
+  push:
+    branches:
+      - dev
+      - stage
+      - main
+    paths:
+      - "modules/s3/**"
+      - "envs/**"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform-s3:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::831926612453:role/github-terraform-role
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Set environment
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
+            echo "ENV=dev" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF_NAME}" == "stage" ]]; then
+            echo "ENV=stage" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            echo "ENV=prod" >> $GITHUB_ENV
+          else
+            echo "Unsupported branch"
+            exit 1
+          fi
+
+      - name: Terraform Init
+        run: |
+          cd envs/${ENV}
+          terraform init
+
+      - name: Terraform Apply (S3 included)
+        run: |
+          cd envs/${ENV}
+          terraform apply -auto-approve
+
